@@ -4,634 +4,519 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Nómina Semanal - Construcción y Obra</title>
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Font Awesome for modern icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              800: '#1e3a8a',
-              900: '#0f2942',
-              accent: '#0284c7',
-              festivo: '#dc2626'
-            }
-          }
-        }
-      }
-    }
-  </script>
   <style>
+    input, select { font-size: 16px; } /* evita el zoom automático en iPhone */
+    .custom-scroll::-webkit-scrollbar { height: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    .mobile-only { display: none; }
+
+    /* ===== Vista celular: cada trabajador es una tarjeta ===== */
+    @media screen and (max-width: 767px) {
+      .mobile-only { display: block; }
+      table, tbody, tr, td { display: block; }
+      thead, tfoot { display: none; }
+      #payrollTableBody { background: #f1f5f9; padding: 10px; }
+      tr.worker-row {
+        display: grid; grid-template-columns: repeat(14, 1fr);
+        gap: 8px 6px; background: #fff; border: 1px solid #cbd5e1;
+        border-radius: 14px; padding: 12px; margin-bottom: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      }
+      tr.worker-row > td { padding: 0 !important; border: 0 !important; min-width: 0; text-align: left !important; }
+      td.c-full { grid-column: 1 / -1; }
+      td.c-half { grid-column: span 7; }
+      td.c-day  { grid-column: span 2; text-align: center !important; }
+      td.c-third-a { grid-column: span 5; }
+      td.c-third-b { grid-column: span 4; }
+      td.c-third-c { grid-column: span 5; }
+      td[data-label]::before {
+        content: attr(data-label); display: block; font-size: 10px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .04em; color: #64748b; margin-bottom: 2px;
+      }
+      td.c-day::before { text-align: center; }
+      td.c-idx { display: none; }
+      tr.worker-row input, tr.worker-row select {
+        width: 100% !important; min-height: 42px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc;
+      }
+      td.c-day input { text-align: center; padding: 0; }
+      td.c-del { text-align: right !important; }
+      td.c-del button { padding: 8px 12px; font-size: 13px; }
+    }
+
     @media print {
       .no-print { display: none !important; }
+      .mobile-only { display: none !important; }
       body { background: white !important; font-size: 10pt; }
       .print-container { box-shadow: none !important; border: 1px solid #ccc !important; width: 100% !important; margin: 0 !important; }
       table { width: 100% !important; border-collapse: collapse; }
       th, td { border: 1px solid #999 !important; padding: 4px 6px !important; }
       input, select { border: none !important; background: transparent !important; }
     }
-    .custom-scroll::-webkit-scrollbar {
-      height: 8px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
-    .custom-scroll::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
 
-  <!-- Header Banner -->
   <header class="bg-gradient-to-r from-blue-950 via-slate-900 to-blue-900 text-white shadow-md border-b border-blue-800 no-print">
-    <div class="max-w-7xl mx-auto px-4 py-4 sm:flex sm:items-center sm:justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="bg-blue-600 p-2.5 rounded-xl shadow-inner">
-          <i class="fa-solid fa-calculator text-2xl text-white"></i>
-        </div>
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-3">
+        <div class="bg-blue-600 p-2.5 rounded-xl shadow-inner"><i class="fa-solid fa-calculator text-xl sm:text-2xl text-white"></i></div>
         <div>
-          <h1 class="text-xl sm:text-2xl font-bold tracking-tight">Planilla de Nómina Semanal</h1>
-          <p class="text-xs text-blue-200">Cálculo de jornales ordinarios, dominicales y festivos en tiempo real</p>
+          <h1 class="text-lg sm:text-2xl font-bold tracking-tight">Planilla de Nómina Semanal</h1>
+          <p class="text-xs text-blue-200">Jornales ordinarios y festivos en tiempo real</p>
         </div>
       </div>
-      <div class="mt-3 sm:mt-0 flex flex-wrap gap-2 items-center">
-        <button onclick="loadExampleData()" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-700/60 hover:bg-blue-600 text-white border border-blue-500/40 transition flex items-center gap-1.5">
+      <div class="flex flex-wrap gap-2 items-center">
+        <button onclick="loadExampleData()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-blue-700/60 hover:bg-blue-600 text-white border border-blue-500/40 transition flex items-center gap-1.5">
           <i class="fa-solid fa-rotate-left"></i> Cargar Ejemplo
         </button>
-        <button onclick="exportToCSV()" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5">
+        <button onclick="exportToCSV()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm transition flex items-center gap-1.5">
           <i class="fa-solid fa-file-excel"></i> Exportar CSV
         </button>
-        <button onclick="window.print()" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-white shadow-sm transition flex items-center gap-1.5">
+        <button onclick="window.print()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-white shadow-sm transition flex items-center gap-1.5">
           <i class="fa-solid fa-print"></i> Imprimir / PDF
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Container -->
-  <main class="max-w-7xl w-full mx-auto p-4 sm:p-6 flex-grow flex flex-col gap-5">
-    
-    <!-- Control bar & Week selector -->
-    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-4 no-print">
-      <div class="flex flex-wrap items-center gap-4">
+  <main class="max-w-7xl w-full mx-auto p-3 sm:p-6 flex-grow flex flex-col gap-4 sm:gap-5">
+
+    <!-- Controles -->
+    <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4 no-print">
+      <div class="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Fecha de Inicio (Lunes):</label>
-          <input type="date" id="startDatePicker" onchange="updateWeekDates()" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50 text-slate-800">
+          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Fecha de inicio (lunes):</label>
+          <input type="date" id="startDatePicker" onchange="updateWeekDates()" class="border border-slate-300 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50 text-slate-800">
         </div>
-        <div class="border-l border-slate-200 pl-4">
-          <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Valores sugeridos por defecto:</label>
-          <div class="flex gap-2">
-            <span class="inline-flex items-center text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded">Oficial: $80.000 / $160.000</span>
-            <span class="inline-flex items-center text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-1 rounded">Ayudante: $90.000 / $200.000</span>
-          </div>
+        <div class="flex items-center gap-2">
+          <button onclick="addNewWorkerRow()" class="px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm transition flex items-center gap-2">
+            <i class="fa-solid fa-user-plus"></i> Agregar empleado
+          </button>
+          <button onclick="clearAllData()" class="px-3 py-2.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm font-medium transition" title="Limpiar planilla">
+            <i class="fa-solid fa-trash-can"></i> Limpiar
+          </button>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <button onclick="addNewWorkerRow()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm transition flex items-center gap-2">
-          <i class="fa-solid fa-user-plus"></i> Agregar Empleado
-        </button>
-        <button onclick="clearAllData()" class="px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm font-medium transition" title="Limpiar planilla">
-          <i class="fa-solid fa-trash-can"></i> Limpiar
-        </button>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Marca los días festivos (toca el día):</label>
+        <div id="holidayChips" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <div class="text-xs text-slate-600 bg-blue-50 border border-blue-200 rounded-lg p-3 leading-relaxed">
+        <strong class="text-blue-900">Cómo llenar:</strong>
+        1) Escribe el nombre. 2) Elige el cargo y el jornal se llena solo (Oficial $80.000 / $160.000, Ayudante $90.000 / $200.000, Maestro $120.000 / $240.000); también puedes escribir el valor que quieras.
+        3) En cada día escribe <code class="bg-white border px-1 rounded font-bold text-blue-700">1</code> si trabajó el día completo,
+        <code class="bg-white border px-1 rounded font-bold text-blue-700">0.5</code> si fue medio día, o déjalo vacío si no fue.
       </div>
     </section>
 
-    <!-- Interactive Table Container -->
+    <!-- Tabla / Tarjetas -->
     <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden print-container flex flex-col">
       <div class="overflow-x-auto custom-scroll">
         <table class="w-full text-left border-collapse text-xs sm:text-sm">
-          <thead>
-            <!-- Primary Blue Header (Matching user's sheet theme) -->
-            <tr class="bg-blue-900 text-white text-center font-bold select-none divide-x divide-blue-800">
-              <th class="py-3 px-2 w-10 text-center uppercase tracking-wider">#</th>
-              <th class="py-3 px-4 min-w-[170px] text-left uppercase tracking-wider">Nombre</th>
-              <th class="py-3 px-3 min-w-[125px] text-left uppercase tracking-wider">Cargo</th>
-              <th class="py-3 px-3 min-w-[120px] uppercase tracking-wider">Jornal Normal<br><span class="text-[10px] font-normal text-blue-200">($/día)</span></th>
-              <th class="py-3 px-3 min-w-[120px] uppercase tracking-wider">Jornal Festivo<br><span class="text-[10px] font-normal text-blue-200">($/día)</span></th>
-              
-              <!-- 7 Day Columns -->
-              <th id="th-day-0" class="py-2 px-1 min-w-[85px] w-20">
-                <div class="flex flex-col items-center">
-                  <span id="label-day-0" class="font-bold">lun 09/11</span>
-                  <button type="button" onclick="toggleDayFestivo(0)" class="no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition border text-white shadow-xs" id="btn-festivo-0">Normal</button>
-                </div>
-              </th>
-              <th id="th-day-1" class="py-2 px-1 min-w-[85px] w-20">
-                <div class="flex flex-col items-center">
-                  <span id="label-day-1" class="font-bold">mar 10/11</span>
-                  <button type="button" onclick="toggleDayFestivo(1)" class="no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition border text-white shadow-xs" id="btn-festivo-1">Normal</button>
-                </div>
-              </th>
-              <th id="th-day-2" class="py-2 px-1 min-w-[85px] w-20">
-                <div class="flex flex-col items-center">
-                  <span id="label-day-2" class="font-bold">mié 11/11</span>
-                  <button type="button" onclick="toggleDayFestivo(2)" class="no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition border text-white shadow-xs" id="btn-festivo-2">Normal</button>
-                </div>
-              </th>
-              <th id="th-day-3" class="py-2 px-1 min-w-[85px] w-20">
-                <div class="flex flex-col items-center">
-                  <span id="label-day-3" class="font-bold">jue 12/11</span>
-                  <button type="button" onclick="toggleDayFestivo(3)" class="no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition border text-white shadow-xs" id="btn-festivo-3">Normal</button>
-                </div>
-              </th>
-              <th id="th-day-4" class="py-2 px-1 min-w-[85px] w-20">
-                <div class="flex flex-col items-center">
-                  <span id="label-day-4" class="font-bold">vie 13/11</span>
-                  <button type="button" onclick="toggleDayFestivo(4)" class="no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition border text-white shadow-xs" id="btn-festivo-4">Normal</button>
-                </div>
-              </th>
-              <th id="th-day-5" class="py-2 px-1 min-w-[85px] w-20">
-                <div class="flex flex-col items-center">
-                  <span id="label-day-5" class="font-bold">sáb 14/11</span>
-                  <button type="button" onclick="toggleDayFestivo(5)" class="no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition border text-white shadow-xs" id="btn-festivo-5">Normal</button>
-                </div>
-              </th>
-              <th id="th-day-6" class="py-2 px-1 min-w-[85px] w-20">
-                <div class="flex flex-col items-center">
-                  <span id="label-day-6" class="font-bold">dom 15/11</span>
-                  <button type="button" onclick="toggleDayFestivo(6)" class="no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition border text-white shadow-xs" id="btn-festivo-6">Festivo</button>
-                </div>
-              </th>
-
-              <!-- Summaries per employee -->
-              <th class="py-3 px-2 min-w-[90px] uppercase tracking-wider">Días<br>Trabajados</th>
-              <th class="py-3 px-2 min-w-[90px] uppercase tracking-wider">Días en<br>Festivo</th>
-              <th class="py-3 px-3 min-w-[130px] uppercase tracking-wider">Total a pagar<br><span class="text-[10px] font-normal text-blue-200">($)</span></th>
-              <th class="py-3 px-2 w-10 text-center no-print">Acción</th>
-            </tr>
-          </thead>
-
-          <!-- Workers Rows (Populated by JavaScript) -->
-          <tbody id="payrollTableBody" class="divide-y divide-slate-200 bg-amber-50/20">
-            <!-- Dynamic rows will render here -->
-          </tbody>
-
-          <!-- Totals Footer (Mirroring spreadsheet structure) -->
+          <thead id="tableHead"></thead>
+          <tbody id="payrollTableBody" class="divide-y divide-slate-200"></tbody>
           <tfoot class="bg-blue-50 font-bold border-t-2 border-blue-900 text-slate-900 divide-y divide-blue-200">
-            <!-- Row 1: TOTAL JORNALES -->
             <tr class="divide-x divide-blue-200 text-center">
-              <td colspan="5" class="py-2 px-4 text-right font-black uppercase text-xs tracking-wider bg-slate-100 text-slate-800">
-                TOTAL JORNALES
-              </td>
-              <td id="tot-jornal-0" class="py-2 px-1 text-slate-900 font-extrabold text-sm">0</td>
-              <td id="tot-jornal-1" class="py-2 px-1 text-slate-900 font-extrabold text-sm">0</td>
-              <td id="tot-jornal-2" class="py-2 px-1 text-slate-900 font-extrabold text-sm">0</td>
-              <td id="tot-jornal-3" class="py-2 px-1 text-slate-900 font-extrabold text-sm">0</td>
-              <td id="tot-jornal-4" class="py-2 px-1 text-slate-900 font-extrabold text-sm">0</td>
-              <td id="tot-jornal-5" class="py-2 px-1 text-slate-900 font-extrabold text-sm">0</td>
-              <td id="tot-jornal-6" class="py-2 px-1 text-slate-900 font-extrabold text-sm">0</td>
+              <td colspan="5" class="py-2 px-4 text-right font-black uppercase text-xs tracking-wider bg-slate-100">TOTAL JORNALES</td>
+              <td id="tot-jornal-0" class="py-2 px-1 font-extrabold text-sm">0</td>
+              <td id="tot-jornal-1" class="py-2 px-1 font-extrabold text-sm">0</td>
+              <td id="tot-jornal-2" class="py-2 px-1 font-extrabold text-sm">0</td>
+              <td id="tot-jornal-3" class="py-2 px-1 font-extrabold text-sm">0</td>
+              <td id="tot-jornal-4" class="py-2 px-1 font-extrabold text-sm">0</td>
+              <td id="tot-jornal-5" class="py-2 px-1 font-extrabold text-sm">0</td>
+              <td id="tot-jornal-6" class="py-2 px-1 font-extrabold text-sm">0</td>
               <td id="tot-total-dias" class="py-2 px-2 text-blue-900 font-black text-sm bg-blue-100/60">0</td>
               <td id="tot-total-festivos" class="py-2 px-2 text-rose-800 font-black text-sm bg-rose-100/60">0</td>
-              <td id="tot-grand-total" class="py-2 px-3 text-right font-black text-emerald-800 text-base bg-emerald-100/50">$0</td>
+              <td id="tot-grand-total" class="py-2 px-3 text-right font-black text-emerald-800 text-base bg-emerald-100/50">-</td>
               <td class="no-print bg-slate-100"></td>
             </tr>
-
-            <!-- Row 2: Costo mano de obra por día ($) -->
             <tr class="divide-x divide-blue-200 text-center">
-              <td colspan="5" class="py-2.5 px-4 text-right font-black uppercase text-xs tracking-wider bg-slate-200/80 text-slate-800">
-                Costo mano de obra por día ($)
-              </td>
-              <td id="cost-day-0" class="py-2.5 px-1 font-bold text-xs">$0</td>
-              <td id="cost-day-1" class="py-2.5 px-1 font-bold text-xs">$0</td>
-              <td id="cost-day-2" class="py-2.5 px-1 font-bold text-xs">$0</td>
-              <td id="cost-day-3" class="py-2.5 px-1 font-bold text-xs">$0</td>
-              <td id="cost-day-4" class="py-2.5 px-1 font-bold text-xs">$0</td>
-              <td id="cost-day-5" class="py-2.5 px-1 font-bold text-xs">$0</td>
-              <td id="cost-day-6" class="py-2.5 px-1 font-bold text-xs">$0</td>
+              <td colspan="5" class="py-2.5 px-4 text-right font-black uppercase text-xs tracking-wider bg-slate-200/80">Costo mano de obra por día ($)</td>
+              <td id="cost-day-0" class="py-2.5 px-1 font-bold text-xs">-</td>
+              <td id="cost-day-1" class="py-2.5 px-1 font-bold text-xs">-</td>
+              <td id="cost-day-2" class="py-2.5 px-1 font-bold text-xs">-</td>
+              <td id="cost-day-3" class="py-2.5 px-1 font-bold text-xs">-</td>
+              <td id="cost-day-4" class="py-2.5 px-1 font-bold text-xs">-</td>
+              <td id="cost-day-5" class="py-2.5 px-1 font-bold text-xs">-</td>
+              <td id="cost-day-6" class="py-2.5 px-1 font-bold text-xs">-</td>
               <td colspan="2" class="bg-slate-100"></td>
-              <td id="cost-grand-total" class="py-2.5 px-3 text-right font-black text-base text-blue-950 bg-blue-200/60">$0</td>
+              <td id="cost-grand-total" class="py-2.5 px-3 text-right font-black text-base text-blue-950 bg-blue-200/60">-</td>
               <td class="no-print bg-slate-200/80"></td>
             </tr>
           </tfoot>
         </table>
       </div>
 
-      <!-- Quick action helper at bottom -->
+      <!-- Totales por día (solo celular) -->
+      <div class="mobile-only p-3 bg-blue-50 border-t-2 border-blue-900 no-print">
+        <p class="text-xs font-black uppercase tracking-wider text-slate-700 mb-2">Totales por día</p>
+        <div id="mobileTotals" class="grid grid-cols-7 gap-1 text-center text-[11px]"></div>
+      </div>
+
       <div class="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap justify-between items-center text-xs text-slate-500 gap-2 no-print">
-        <div class="flex items-center gap-4">
-          <span><strong class="text-slate-700">Valores de asistencia:</strong> <code class="bg-white border px-1 py-0.5 rounded text-blue-700 font-bold">1</code> = Día entero, <code class="bg-white border px-1 py-0.5 rounded text-blue-700 font-bold">0.5</code> = Medio día, <code class="bg-white border px-1 py-0.5 rounded text-blue-700 font-bold">0</code> = Ausente</span>
-        </div>
-        <div>
-          <span>Semana activa: <span id="weekRangeLabel" class="font-semibold text-slate-700">09 Nov - 15 Nov</span></span>
-        </div>
+        <span><strong class="text-slate-700">Semana:</strong> <span id="weekRangeLabel" class="font-semibold text-slate-700"></span></span>
+        <span><code class="bg-white border px-1 rounded text-blue-700 font-bold">1</code> día completo · <code class="bg-white border px-1 rounded text-blue-700 font-bold">0.5</code> medio día · vacío = no trabajó</span>
       </div>
     </div>
 
-    <!-- Summary KPI Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 no-print">
-      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+    <!-- KPIs -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 no-print">
+      <div class="bg-white rounded-xl p-4 border border-slate-200 flex items-center justify-between">
         <div>
-          <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Trabajadores</span>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Trabajadores</span>
           <p id="kpi-workers" class="text-2xl font-black text-slate-800 mt-1">0</p>
         </div>
-        <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-lg">
-          <i class="fa-solid fa-users"></i>
-        </div>
+        <div class="w-11 h-11 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-lg"><i class="fa-solid fa-users"></i></div>
       </div>
-
-      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
+      <div class="bg-white rounded-xl p-4 border border-slate-200 flex items-center justify-between">
         <div>
-          <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Jornales Totales</span>
-          <p id="kpi-jornales" class="text-2xl font-black text-blue-700 mt-1">0 <span class="text-xs font-normal text-slate-500">(0 festivos)</span></p>
+          <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Jornales totales</span>
+          <p id="kpi-jornales" class="text-2xl font-black text-blue-700 mt-1">0</p>
         </div>
-        <div class="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg">
-          <i class="fa-solid fa-calendar-check"></i>
-        </div>
+        <div class="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg"><i class="fa-solid fa-calendar-check"></i></div>
       </div>
-
-      <div class="bg-white rounded-xl p-4 border border-emerald-200 bg-emerald-50/30 shadow-xs flex items-center justify-between">
+      <div class="bg-white rounded-xl p-4 border border-emerald-200 bg-emerald-50/30 flex items-center justify-between">
         <div>
-          <span class="text-xs font-semibold uppercase tracking-wider text-emerald-800">Total Nómina a Pagar</span>
-          <p id="kpi-total-payroll" class="text-2xl font-black text-emerald-700 mt-1">$0</p>
+          <span class="text-xs font-semibold uppercase tracking-wider text-emerald-800">Total nómina a pagar</span>
+          <p id="kpi-total-payroll" class="text-2xl font-black text-emerald-700 mt-1">-</p>
         </div>
-        <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg">
-          <i class="fa-solid fa-hand-holding-dollar"></i>
-        </div>
+        <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg"><i class="fa-solid fa-hand-holding-dollar"></i></div>
       </div>
     </div>
   </main>
 
-  <!-- Notification Toast Modal -->
   <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none z-50">
     <i class="fa-solid fa-circle-check text-emerald-400"></i>
-    <span id="toastMessage">Operación realizada con éxito</span>
+    <span id="toastMessage"></span>
   </div>
 
   <script>
-    // Day config state
-    const daysMeta = [
-      { name: 'lun', isHoliday: true, dateText: '09/11' },
-      { name: 'mar', isHoliday: false, dateText: '10/11' },
-      { name: 'mié', isHoliday: false, dateText: '11/11' },
-      { name: 'jue', isHoliday: false, dateText: '12/11' },
-      { name: 'vie', isHoliday: false, dateText: '13/11' },
-      { name: 'sáb', isHoliday: false, dateText: '14/11' },
-      { name: 'dom', isHoliday: true,  dateText: '15/11' }
-    ];
-
-    // Default predefined workers (matching user provided image sample)
-    let workers = [
-      { id: 1, name: 'Mello', role: 'Oficial', rateNormal: 80000, rateFestivo: 160000, days: [1, 1, 1, 1, 1, 1, 0] },
-      { id: 2, name: 'Mello', role: 'Oficial', rateNormal: 80000, rateFestivo: 160000, days: [1, 1, 1, 1, 1, 1, 0] },
-      { id: 3, name: 'Bera', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [1, 1, 0, 1, 0, 1, 0] },
-      { id: 4, name: 'Botellon', role: 'Oficial', rateNormal: 80000, rateFestivo: 160000, days: [0, 0, 0, 0, 0, 0, 0] },
-      { id: 5, name: 'churri', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [0, 0, 0, 0, 0, 0, 0] },
-      { id: 6, name: 'Indio', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [0, 0, 0, 0, 0, 0, 0] },
-      { id: 7, name: 'Gloria', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [0, 0, 0, 0, 0, 0, 0] }
-    ];
+    const DAY_NAMES = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const NUM_EMPTY_ROWS = 5;
 
     const rolePresets = {
-      'Oficial': { normal: 80000, festivo: 160000 },
-      'Ayudante': { normal: 90000, festivo: 200000 },
-      'Maestro': { normal: 120000, festivo: 240000 },
-      'Personalizado': { normal: 0, festivo: 0 }
+      'Oficial':  { normal: 80000,  festivo: 160000 },
+      'Ayudante': { normal: 90000,  festivo: 200000 },
+      'Maestro':  { normal: 120000, festivo: 240000 }
     };
 
-    // Format Currency Colombian Pesos
-    function formatCOP(amount) {
-      if (isNaN(amount) || amount === null || amount === 0) return '-';
-      return '$' + Math.round(amount).toLocaleString('es-CO');
+    let startDate = new Date();
+    const daysMeta = Array.from({ length: 7 }, () => ({ name: '', dateText: '', isHoliday: false }));
+    let workers = [];
+    let nextId = 1;
+
+    function newWorker(data) {
+      return Object.assign({
+        id: nextId++, name: '', role: '', rateNormal: 0, rateFestivo: 0,
+        days: [0, 0, 0, 0, 0, 0, 0]
+      }, data || {});
     }
 
-    // Toggle Holiday state for a column
-    function toggleDayFestivo(dayIndex) {
-      daysMeta[dayIndex].isHoliday = !daysMeta[dayIndex].isHoliday;
-      updateHeaderStyles();
-      renderTable();
-      showToast(`Día ${daysMeta[dayIndex].name} marcado como ${daysMeta[dayIndex].isHoliday ? 'FESTIVO' : 'NORMAL'}`);
+    function emptyWorkers() {
+      return Array.from({ length: NUM_EMPTY_ROWS }, () => newWorker());
     }
 
-    // Update Header buttons & styles
-    function updateHeaderStyles() {
-      daysMeta.forEach((day, index) => {
-        const btn = document.getElementById(`btn-festivo-${index}`);
-        const th = document.getElementById(`th-day-${index}`);
-        const label = document.getElementById(`label-day-${index}`);
-        
-        label.innerText = `${day.name} ${day.dateText}`;
-
-        if (day.isHoliday) {
-          btn.textContent = 'Festivo';
-          btn.className = 'no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white border border-rose-400 shadow-sm';
-          th.className = 'py-2 px-1 min-w-[85px] w-20 bg-rose-950/70 border-b-2 border-rose-500';
-        } else {
-          btn.textContent = 'Normal';
-          btn.className = 'no-print mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-blue-800 text-blue-200 hover:bg-blue-700 border border-blue-600/50';
-          th.className = 'py-2 px-1 min-w-[85px] w-20 bg-blue-900 border-b border-blue-800';
-        }
-      });
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
-    // Handle date selection change
+    function formatCOP(n) {
+      if (!n || isNaN(n)) return '-';
+      return '$' + Math.round(n).toLocaleString('es-CO');
+    }
+
+    function fmtNum(n) { return n % 1 === 0 ? String(n) : n.toFixed(1); }
+
+    function toISODate(d) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    /* ---------- Fechas ---------- */
     function updateWeekDates() {
       const picker = document.getElementById('startDatePicker');
       if (!picker.value) return;
-
-      const baseDate = new Date(picker.value + 'T00:00:00');
+      startDate = new Date(picker.value + 'T00:00:00');
       for (let i = 0; i < 7; i++) {
-        const curr = new Date(baseDate);
-        curr.setDate(baseDate.getDate() + i);
-        const dayNum = String(curr.getDate()).padStart(2, '0');
-        const monthNum = String(curr.getMonth() + 1).padStart(2, '0');
-        daysMeta[i].dateText = `${dayNum}/${monthNum}`;
+        const c = new Date(startDate);
+        c.setDate(startDate.getDate() + i);
+        daysMeta[i].name = DAY_NAMES[c.getDay()];
+        daysMeta[i].dateText = String(c.getDate()).padStart(2, '0') + '/' + String(c.getMonth() + 1).padStart(2, '0');
       }
-
-      const startTxt = daysMeta[0].dateText;
-      const endTxt = daysMeta[6].dateText;
-      document.getElementById('weekRangeLabel').textContent = `${startTxt} - ${endTxt}`;
-      updateHeaderStyles();
+      document.getElementById('weekRangeLabel').textContent = daysMeta[0].dateText + ' - ' + daysMeta[6].dateText;
+      renderAll();
     }
 
-    // Handle role change auto filling default rates
-    function onRoleChange(index, newRole) {
-      workers[index].role = newRole;
-      if (rolePresets[newRole] && newRole !== 'Personalizado') {
-        workers[index].rateNormal = rolePresets[newRole].normal;
-        workers[index].rateFestivo = rolePresets[newRole].festivo;
+    function toggleDayFestivo(i) {
+      daysMeta[i].isHoliday = !daysMeta[i].isHoliday;
+      renderAll();
+      showToast(daysMeta[i].name + ' ' + daysMeta[i].dateText + ': ' + (daysMeta[i].isHoliday ? 'FESTIVO' : 'normal'));
+    }
+
+    /* ---------- Handlers de escritura (NO redibujan la tabla) ---------- */
+    function onName(i, v) {
+      workers[i].name = v;
+      recalc();
+    }
+
+    function onRoleChange(i, role) {
+      workers[i].role = role;
+      if (rolePresets[role]) {
+        workers[i].rateNormal = rolePresets[role].normal;
+        workers[i].rateFestivo = rolePresets[role].festivo;
       }
-      renderTable();
+      // Solo actualiza los campos de jornal de esa fila, sin perder el foco de nada más
+      const rn = document.getElementById('rn-' + i), rf = document.getElementById('rf-' + i);
+      if (rn) rn.value = workers[i].rateNormal || '';
+      if (rf) rf.value = workers[i].rateFestivo || '';
+      recalc();
     }
 
-    // Update field directly
-    function updateWorkerField(index, field, value) {
-      if (field === 'rateNormal' || field === 'rateFestivo') {
-        workers[index][field] = parseFloat(value) || 0;
-      } else {
-        workers[index][field] = value;
+    function onRate(i, field, el) {
+      const clean = el.value.replace(/[^\d]/g, '');
+      workers[i][field] = parseInt(clean, 10) || 0;
+      recalc();
+    }
+
+    function attClass(val, isHoli) {
+      const base = 'w-12 text-center py-1 rounded border focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none ';
+      if (val > 0) {
+        return base + (isHoli ? 'text-rose-700 font-extrabold bg-rose-100/70 border-rose-300' : 'text-blue-900 font-bold bg-blue-50 border-blue-200');
       }
-      renderTable();
+      return base + 'text-slate-500 bg-white border-slate-200';
     }
 
-    // Update daily attendance
-    function updateAttendance(workerIdx, dayIdx, val) {
-      const num = parseFloat(val);
-      workers[workerIdx].days[dayIdx] = isNaN(num) ? 0 : Math.max(0, num);
-      renderTable();
+    function onAtt(i, d, el) {
+      const v = parseFloat(String(el.value).replace(',', '.'));
+      workers[i].days[d] = isNaN(v) ? 0 : Math.min(1, Math.max(0, v));
+      el.className = attClass(workers[i].days[d], daysMeta[d].isHoliday);
+      recalc();
     }
 
-    // Add new worker
+    function onAttBlur(i, d, el) {
+      const v = workers[i].days[d];
+      el.value = v === 0 ? '' : v;
+    }
+
+    /* ---------- Acciones ---------- */
     function addNewWorkerRow() {
-      const newId = workers.length > 0 ? Math.max(...workers.map(w => w.id || 0)) + 1 : 1;
-      workers.push({
-        id: newId,
-        name: '',
-        role: 'Ayudante',
-        rateNormal: 90000,
-        rateFestivo: 200000,
-        days: [0, 0, 0, 0, 0, 0, 0]
-      });
-      renderTable();
+      workers.push(newWorker());
+      renderAll();
       showToast('Nuevo trabajador agregado');
     }
 
-    // Delete worker row
-    function deleteWorkerRow(index) {
-      if (workers.length <= 1) {
-        showToast('Debe haber al menos un trabajador en la tabla');
-        return;
-      }
-      workers.splice(index, 1);
-      renderTable();
+    function deleteWorkerRow(i) {
+      if (workers.length <= 1) { showToast('Debe haber al menos una fila'); return; }
+      workers.splice(i, 1);
+      renderAll();
       showToast('Fila eliminada');
     }
 
-    // Clear all data
     function clearAllData() {
-      workers = [
-        { id: 1, name: '', role: 'Oficial', rateNormal: 80000, rateFestivo: 160000, days: [0,0,0,0,0,0,0] }
-      ];
-      renderTable();
+      workers = emptyWorkers();
+      daysMeta.forEach(d => d.isHoliday = false);
+      renderAll();
       showToast('Planilla reiniciada');
     }
 
-    // Load Image sample data
     function loadExampleData() {
-      daysMeta[0].isHoliday = true; // Lunes festivo
-      daysMeta[1].isHoliday = false;
-      daysMeta[2].isHoliday = false;
-      daysMeta[3].isHoliday = false;
-      daysMeta[4].isHoliday = false;
-      daysMeta[5].isHoliday = false;
-      daysMeta[6].isHoliday = false;
-
+      daysMeta.forEach((d, i) => d.isHoliday = (i === 0));
       workers = [
-        { id: 1, name: 'Mello', role: 'Oficial', rateNormal: 80000, rateFestivo: 160000, days: [1, 1, 1, 1, 1, 1, 0] },
-        { id: 2, name: 'Mello', role: 'Oficial', rateNormal: 80000, rateFestivo: 160000, days: [1, 1, 1, 1, 1, 1, 0] },
-        { id: 3, name: 'Bera', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [1, 1, 0, 1, 0, 1, 0] },
-        { id: 4, name: 'Botellon', role: 'Oficial', rateNormal: 80000, rateFestivo: 160000, days: [0, 0, 0, 0, 0, 0, 0] },
-        { id: 5, name: 'churri', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [0, 0, 0, 0, 0, 0, 0] },
-        { id: 6, name: 'Indio', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [0, 0, 0, 0, 0, 0, 0] },
-        { id: 7, name: 'Gloria', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [0, 0, 0, 0, 0, 0, 0] }
+        newWorker({ name: 'Ejemplo 1', role: 'Oficial',  rateNormal: 80000, rateFestivo: 160000, days: [1, 1, 1, 1, 1, 1, 0] }),
+        newWorker({ name: 'Ejemplo 2', role: 'Ayudante', rateNormal: 90000, rateFestivo: 200000, days: [1, 1, 0, 1, 0, 1, 0] })
       ];
-
-      updateHeaderStyles();
-      renderTable();
-      showToast('Datos de ejemplo cargados');
+      renderAll();
+      showToast('Datos de ejemplo cargados (usa "Limpiar" para borrarlos)');
     }
 
-    // Render Table Body and Calculate Totals
-    function renderTable() {
+    /* ---------- Render completo (solo cuando cambia la estructura) ---------- */
+    function renderAll() {
+      renderHead();
+      renderChips();
+      renderRows();
+      recalc();
+    }
+
+    function renderHead() {
+      const dayTh = daysMeta.map(d => {
+        const cls = d.isHoliday ? 'bg-rose-950/70 border-b-2 border-rose-500' : '';
+        return `<th class="py-2 px-1 min-w-[70px] text-center ${cls}">
+          <div class="font-bold">${d.name} ${d.dateText}</div>
+          <div class="text-[10px] font-semibold uppercase ${d.isHoliday ? 'text-rose-300' : 'text-blue-300'}">${d.isHoliday ? 'Festivo' : 'Normal'}</div>
+        </th>`;
+      }).join('');
+      document.getElementById('tableHead').innerHTML = `
+        <tr class="bg-blue-900 text-white text-center font-bold select-none divide-x divide-blue-800">
+          <th class="py-3 px-2 w-10 uppercase tracking-wider">#</th>
+          <th class="py-3 px-4 min-w-[170px] text-left uppercase tracking-wider">Nombre</th>
+          <th class="py-3 px-3 min-w-[125px] text-left uppercase tracking-wider">Cargo</th>
+          <th class="py-3 px-3 min-w-[110px] uppercase tracking-wider">Jornal normal<br><span class="text-[10px] font-normal text-blue-200">($/día)</span></th>
+          <th class="py-3 px-3 min-w-[110px] uppercase tracking-wider">Jornal festivo<br><span class="text-[10px] font-normal text-blue-200">($/día)</span></th>
+          ${dayTh}
+          <th class="py-3 px-2 min-w-[80px] uppercase tracking-wider">Días<br>trabajados</th>
+          <th class="py-3 px-2 min-w-[80px] uppercase tracking-wider">Días en<br>festivo</th>
+          <th class="py-3 px-3 min-w-[130px] uppercase tracking-wider">Total a pagar<br><span class="text-[10px] font-normal text-blue-200">($)</span></th>
+          <th class="py-3 px-2 w-10 no-print">Acción</th>
+        </tr>`;
+    }
+
+    function renderChips() {
+      document.getElementById('holidayChips').innerHTML = daysMeta.map((d, i) => {
+        const on = d.isHoliday;
+        return `<button type="button" onclick="toggleDayFestivo(${i})"
+          class="px-3 py-2 rounded-lg text-xs font-bold border transition min-w-[64px] ${on ? 'bg-rose-600 text-white border-rose-400' : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'}">
+          ${d.name} ${d.dateText}<br><span class="text-[10px] font-semibold uppercase">${on ? 'Festivo' : 'Normal'}</span></button>`;
+      }).join('');
+    }
+
+    function renderRows() {
       const tbody = document.getElementById('payrollTableBody');
-      tbody.innerHTML = '';
+      tbody.innerHTML = workers.map((w, i) => {
+        const roleOpts = ['', 'Oficial', 'Ayudante', 'Maestro', 'Personalizado'].map(r =>
+          `<option value="${r}" ${w.role === r ? 'selected' : ''}>${r === '' ? 'Elegir cargo...' : r}</option>`).join('');
 
-      // Column accumulator variables
-      const dayJornalesSum = [0, 0, 0, 0, 0, 0, 0];
-      const dayCostSum = [0, 0, 0, 0, 0, 0, 0];
-      let sumTotalDias = 0;
-      let sumTotalFestivos = 0;
-      let sumGrandPayroll = 0;
+        const dayCells = w.days.map((v, d) => {
+          const isHoli = daysMeta[d].isHoliday;
+          return `<td class="py-1 px-1 text-center c-day ${isHoli ? 'bg-rose-50/60' : ''}" data-label="${daysMeta[d].name} ${daysMeta[d].dateText}">
+            <input type="text" inputmode="decimal" autocomplete="off" placeholder="1 ó 0.5"
+              value="${v === 0 ? '' : v}"
+              oninput="onAtt(${i}, ${d}, this)" onblur="onAttBlur(${i}, ${d}, this)"
+              class="${attClass(v, isHoli)}" style="width:3.4rem">
+          </td>`;
+        }).join('');
 
-      workers.forEach((worker, idx) => {
-        let diasTrabajados = 0;
-        let diasFestivos = 0;
-        let totalPagar = 0;
-
-        // Process individual days
-        worker.days.forEach((val, dIdx) => {
-          const attendance = parseFloat(val) || 0;
-          diasTrabajados += attendance;
-          dayJornalesSum[dIdx] += attendance;
-
-          const isHoli = daysMeta[dIdx].isHoliday;
-          if (isHoli) {
-            diasFestivos += attendance;
-          }
-
-          // Compute day cost
-          const dayRate = isHoli ? (worker.rateFestivo || 0) : (worker.rateNormal || 0);
-          const costForThisDay = attendance * dayRate;
-          dayCostSum[dIdx] += costForThisDay;
-          totalPagar += costForThisDay;
-        });
-
-        sumTotalDias += diasTrabajados;
-        sumTotalFestivos += diasFestivos;
-        sumGrandPayroll += totalPagar;
-
-        // Create table row
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-amber-100/40 transition divide-x divide-slate-200 border-b border-slate-200';
-
-        tr.innerHTML = `
-          <!-- # Index -->
-          <td class="text-center font-semibold text-slate-500 py-1.5 px-2 bg-slate-50/50">${idx + 1}</td>
-          
-          <!-- Worker Name -->
-          <td class="py-1 px-2 font-medium">
-            <input type="text" value="${worker.name}" placeholder="Nombre..." 
-              oninput="updateWorkerField(${idx}, 'name', this.value)"
+        return `<tr class="worker-row hover:bg-amber-50/60 transition divide-x divide-slate-200 border-b border-slate-200">
+          <td class="c-idx text-center font-semibold text-slate-500 py-1.5 px-2 bg-slate-50/50">${i + 1}</td>
+          <td class="c-full py-1 px-2" data-label="Nombre">
+            <input type="text" autocomplete="off" value="${esc(w.name)}" placeholder="Escribe el nombre"
+              oninput="onName(${i}, this.value)"
               class="w-full bg-transparent px-2 py-1 rounded focus:bg-white focus:ring-1 focus:ring-blue-500 text-blue-950 font-semibold focus:outline-none">
           </td>
-
-          <!-- Role -->
-          <td class="py-1 px-2">
-            <select onchange="onRoleChange(${idx}, this.value)" class="w-full text-xs bg-transparent py-1 px-1 rounded font-medium text-slate-700 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">
-              <option value="Oficial" ${worker.role === 'Oficial' ? 'selected' : ''}>Oficial</option>
-              <option value="Ayudante" ${worker.role === 'Ayudante' ? 'selected' : ''}>Ayudante</option>
-              <option value="Maestro" ${worker.role === 'Maestro' ? 'selected' : ''}>Maestro</option>
-              <option value="Personalizado" ${worker.role === 'Personalizado' ? 'selected' : ''}>Personalizado</option>
-            </select>
+          <td class="c-full py-1 px-2" data-label="Cargo">
+            <select onchange="onRoleChange(${i}, this.value)" class="w-full bg-transparent py-1 px-1 rounded font-medium text-slate-700 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">${roleOpts}</select>
           </td>
-
-          <!-- Jornal Normal -->
-          <td class="py-1 px-2 text-right">
-            <input type="number" step="1000" value="${worker.rateNormal || 0}" 
-              oninput="updateWorkerField(${idx}, 'rateNormal', this.value)"
+          <td class="c-half py-1 px-2" data-label="Jornal normal ($)">
+            <input id="rn-${i}" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 80000"
+              value="${w.rateNormal || ''}" oninput="onRate(${i}, 'rateNormal', this)"
               class="w-full text-right bg-transparent px-1.5 py-1 rounded text-blue-900 font-semibold focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
           </td>
-
-          <!-- Jornal Festivo -->
-          <td class="py-1 px-2 text-right">
-            <input type="number" step="1000" value="${worker.rateFestivo || 0}" 
-              oninput="updateWorkerField(${idx}, 'rateFestivo', this.value)"
+          <td class="c-half py-1 px-2" data-label="Jornal festivo ($)">
+            <input id="rf-${i}" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 160000"
+              value="${w.rateFestivo || ''}" oninput="onRate(${i}, 'rateFestivo', this)"
               class="w-full text-right bg-transparent px-1.5 py-1 rounded text-blue-900 font-semibold focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
           </td>
-
-          <!-- 7 Attendance inputs -->
-          ${worker.days.map((dVal, dIndex) => {
-            const isHoli = daysMeta[dIndex].isHoliday;
-            const bgCell = isHoli ? 'bg-rose-50/50' : '';
-            return `
-              <td class="py-1 px-1 text-center ${bgCell}">
-                <input type="number" step="0.5" min="0" max="1" 
-                  value="${dVal === 0 ? '' : dVal}" 
-                  placeholder="0"
-                  onchange="updateAttendance(${idx}, ${dIndex}, this.value)"
-                  class="w-12 text-center py-1 font-bold rounded ${dVal > 0 ? (isHoli ? 'text-rose-700 font-extrabold bg-rose-100/70 border-rose-300' : 'text-blue-900 font-bold bg-blue-50 border-blue-200') : 'text-slate-400 bg-transparent'} border focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none">
-              </td>
-            `;
-          }).join('')}
-
-          <!-- Días Trabajados -->
-          <td class="py-2 px-2 text-center font-bold text-slate-800 bg-slate-50/40">
-            ${diasTrabajados}
-          </td>
-
-          <!-- Días en Festivo -->
-          <td class="py-2 px-2 text-center font-bold ${diasFestivos > 0 ? 'text-rose-700 bg-rose-50/40 font-extrabold' : 'text-slate-400'}">
-            ${diasFestivos}
-          </td>
-
-          <!-- Total a Pagar -->
-          <td class="py-2 px-3 text-right font-black text-slate-900 text-sm bg-slate-50/60">
-            ${formatCOP(totalPagar)}
-          </td>
-
-          <!-- Actions -->
-          <td class="text-center py-1 px-2 no-print">
-            <button onclick="deleteWorkerRow(${idx})" class="text-slate-400 hover:text-rose-600 transition p-1" title="Eliminar fila">
-              <i class="fa-regular fa-trash-can"></i>
+          ${dayCells}
+          <td id="r-dias-${i}" class="c-third-a py-2 px-2 text-center font-bold text-slate-800 bg-slate-50/40" data-label="Días trabajados">0</td>
+          <td id="r-fest-${i}" class="c-third-b py-2 px-2 text-center font-bold text-slate-400" data-label="Días festivo">0</td>
+          <td id="r-total-${i}" class="c-third-c py-2 px-3 text-right font-black text-slate-900 text-sm bg-slate-50/60" data-label="Total a pagar">-</td>
+          <td class="c-full c-del text-center py-1 px-2 no-print">
+            <button onclick="deleteWorkerRow(${i})" class="text-slate-400 hover:text-rose-600 transition p-1" title="Eliminar fila">
+              <i class="fa-regular fa-trash-can"></i> <span class="mobile-only" style="display:none"></span>
             </button>
           </td>
-        `;
-
-        tbody.appendChild(tr);
-      });
-
-      // Update Table Footer Values
-      dayJornalesSum.forEach((val, i) => {
-        document.getElementById(`tot-jornal-${i}`).textContent = val % 1 === 0 ? val : val.toFixed(1);
-      });
-      document.getElementById('tot-total-dias').textContent = sumTotalDias % 1 === 0 ? sumTotalDias : sumTotalDias.toFixed(1);
-      document.getElementById('tot-total-festivos').textContent = sumTotalFestivos % 1 === 0 ? sumTotalFestivos : sumTotalFestivos.toFixed(1);
-      document.getElementById('tot-grand-total').textContent = formatCOP(sumGrandPayroll);
-
-      dayCostSum.forEach((cost, i) => {
-        document.getElementById(`cost-day-${i}`).textContent = formatCOP(cost);
-      });
-      document.getElementById('cost-grand-total').textContent = formatCOP(sumGrandPayroll);
-
-      // Update KPI Cards
-      document.getElementById('kpi-workers').textContent = workers.filter(w => w.name.trim() !== '').length || workers.length;
-      document.getElementById('kpi-jornales').innerHTML = `${sumTotalDias} <span class="text-xs font-normal text-slate-500">(${sumTotalFestivos} festivos)</span>`;
-      document.getElementById('kpi-total-payroll').textContent = formatCOP(sumGrandPayroll);
+        </tr>`;
+      }).join('');
     }
 
-    // CSV Export
-    function exportToCSV() {
-      let csv = '\uFEFF'; // UTF-8 BOM for Excel Spanish compatibility
-      csv += "sep=,\n"; // Excel delimiter helper
-      
-      // Header
-      const headerDays = daysMeta.map(d => `"${d.name} ${d.dateText} (${d.isHoliday ? 'Festivo' : 'Normal'})"`).join(',');
-      csv += `#,Nombre,Cargo,Jornal Normal,Jornal Festivo,${headerDays},Dias Trabajados,Dias en Festivo,Total a Pagar\n`;
+    /* ---------- Cálculo (solo actualiza textos, nunca recrea inputs) ---------- */
+    function recalc() {
+      const daySum = [0, 0, 0, 0, 0, 0, 0];
+      const costSum = [0, 0, 0, 0, 0, 0, 0];
+      let sumDias = 0, sumFest = 0, sumPay = 0, activeWorkers = 0;
 
-      // Rows
-      workers.forEach((w, idx) => {
-        let worked = 0;
-        let holiWorked = 0;
-        let total = 0;
-
-        w.days.forEach((att, dIdx) => {
-          worked += att;
-          if (daysMeta[dIdx].isHoliday) holiWorked += att;
-          const r = daysMeta[dIdx].isHoliday ? w.rateFestivo : w.rateNormal;
-          total += att * r;
+      workers.forEach((w, i) => {
+        let dias = 0, fest = 0, total = 0;
+        w.days.forEach((att, d) => {
+          dias += att;
+          daySum[d] += att;
+          const isHoli = daysMeta[d].isHoliday;
+          if (isHoli) fest += att;
+          const cost = att * (isHoli ? w.rateFestivo : w.rateNormal);
+          costSum[d] += cost;
+          total += cost;
         });
+        sumDias += dias; sumFest += fest; sumPay += total;
+        if (w.name.trim() !== '' || dias > 0) activeWorkers++;
 
-        const dayValues = w.days.join(',');
-        csv += `${idx + 1},"${w.name}","${w.role}",${w.rateNormal},${w.rateFestivo},${dayValues},${worked},${holiWorked},${total}\n`;
+        const e1 = document.getElementById('r-dias-' + i);
+        const e2 = document.getElementById('r-fest-' + i);
+        const e3 = document.getElementById('r-total-' + i);
+        if (e1) e1.textContent = fmtNum(dias);
+        if (e2) {
+          e2.textContent = fmtNum(fest);
+          e2.className = e2.className.replace(/text-rose-700 font-extrabold|text-slate-400/g, '').trim() + (fest > 0 ? ' text-rose-700 font-extrabold' : ' text-slate-400');
+        }
+        if (e3) e3.textContent = formatCOP(total);
       });
 
-      // Download trigger
+      daySum.forEach((v, i) => { document.getElementById('tot-jornal-' + i).textContent = fmtNum(v); });
+      costSum.forEach((v, i) => { document.getElementById('cost-day-' + i).textContent = formatCOP(v); });
+      document.getElementById('tot-total-dias').textContent = fmtNum(sumDias);
+      document.getElementById('tot-total-festivos').textContent = fmtNum(sumFest);
+      document.getElementById('tot-grand-total').textContent = formatCOP(sumPay);
+      document.getElementById('cost-grand-total').textContent = formatCOP(sumPay);
+
+      document.getElementById('kpi-workers').textContent = activeWorkers;
+      document.getElementById('kpi-jornales').innerHTML = fmtNum(sumDias) + ' <span class="text-xs font-normal text-slate-500">(' + fmtNum(sumFest) + ' festivos)</span>';
+      document.getElementById('kpi-total-payroll').textContent = formatCOP(sumPay);
+
+      document.getElementById('mobileTotals').innerHTML = daysMeta.map((d, i) =>
+        `<div class="bg-white border ${d.isHoliday ? 'border-rose-300' : 'border-blue-200'} rounded-md py-1">
+           <div class="font-bold ${d.isHoliday ? 'text-rose-700' : 'text-slate-700'}">${d.name}</div>
+           <div class="font-extrabold">${fmtNum(daySum[i])}</div>
+           <div class="text-[9px] text-slate-500 break-all">${formatCOP(costSum[i])}</div>
+         </div>`).join('');
+    }
+
+    /* ---------- CSV ---------- */
+    function exportToCSV() {
+      let csv = '\uFEFF';
+      csv += 'sep=,\n';
+      const headerDays = daysMeta.map(d => `"${d.name} ${d.dateText} (${d.isHoliday ? 'Festivo' : 'Normal'})"`).join(',');
+      csv += `#,Nombre,Cargo,Jornal Normal,Jornal Festivo,${headerDays},Dias Trabajados,Dias en Festivo,Total a Pagar\n`;
+      workers.forEach((w, idx) => {
+        let worked = 0, holi = 0, total = 0;
+        w.days.forEach((a, d) => {
+          worked += a;
+          if (daysMeta[d].isHoliday) holi += a;
+          total += a * (daysMeta[d].isHoliday ? w.rateFestivo : w.rateNormal);
+        });
+        csv += `${idx + 1},"${w.name}","${w.role}",${w.rateNormal},${w.rateFestivo},${w.days.join(',')},${worked},${holi},${total}\n`;
+      });
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `Nomina_Semana_${daysMeta[0].dateText.replace('/', '-')}.csv`);
+      link.href = url;
+      link.download = 'Nomina_Semana_' + daysMeta[0].dateText.replace('/', '-') + '.csv';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      showToast('Archivo CSV descargado con éxito');
+      showToast('Archivo CSV descargado');
     }
 
-    // Toast message helper
     function showToast(msg) {
       const toast = document.getElementById('toast');
-      const text = document.getElementById('toastMessage');
-      text.innerText = msg;
+      document.getElementById('toastMessage').textContent = msg;
       toast.classList.remove('opacity-0', 'translate-y-20');
       toast.classList.add('opacity-100', 'translate-y-0');
-      
       setTimeout(() => {
         toast.classList.remove('opacity-100', 'translate-y-0');
         toast.classList.add('opacity-0', 'translate-y-20');
       }, 2500);
     }
 
-    // Initial load setup
-    window.onload = function() {
-      // Default to reference week Nov 09 - Nov 15
-      const dateInput = document.getElementById('startDatePicker');
-      // Set to current Monday or default sample
-      dateInput.value = '2020-11-09';
-      updateHeaderStyles();
-      renderTable();
+    /* ---------- Inicio ---------- */
+    window.onload = function () {
+      // Por defecto: lunes de la semana actual
+      const t = new Date();
+      t.setDate(t.getDate() - ((t.getDay() + 6) % 7));
+      document.getElementById('startDatePicker').value = toISODate(t);
+      workers = emptyWorkers();
+      updateWeekDates();
     };
   </script>
 </body>
