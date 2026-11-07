@@ -46,14 +46,29 @@
       td.c-del button { padding: 8px 12px; font-size: 13px; }
     }
 
+    .print-only { display: none; }
+
+    @page { size: A4 landscape; margin: 8mm; }
+
     @media print {
-      .no-print { display: none !important; }
-      .mobile-only { display: none !important; }
-      body { background: white !important; font-size: 10pt; }
-      .print-container { box-shadow: none !important; border: 1px solid #ccc !important; width: 100% !important; margin: 0 !important; }
-      table { width: 100% !important; border-collapse: collapse; }
-      th, td { border: 1px solid #999 !important; padding: 4px 6px !important; }
-      input, select { border: none !important; background: transparent !important; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print, .mobile-only { display: none !important; }
+      .print-only { display: block !important; }
+      body { background: #fff !important; font-size: 9pt; min-height: 0 !important; }
+      main { padding: 0 !important; max-width: none !important; gap: 6px !important; }
+      .print-container { box-shadow: none !important; border: none !important; border-radius: 0 !important; overflow: visible !important; width: 100% !important; margin: 0 !important; }
+      .print-container > div { overflow: visible !important; }
+      table { width: 100% !important; table-layout: auto; border-collapse: collapse; font-size: 8.5pt; }
+      th, td { border: 1px solid #888 !important; padding: 3px 4px !important; min-width: 0 !important; width: auto !important; }
+      th { font-size: 8pt; }
+      input, select { border: none !important; background: transparent !important; width: 100% !important; min-width: 0 !important; padding: 0 !important; margin: 0 !important; text-align: center; font-size: 8.5pt; box-shadow: none !important; }
+      input::placeholder { color: transparent !important; }
+      select { -webkit-appearance: none; appearance: none; }
+      select:required:invalid { color: transparent !important; }
+      tr.row-empty { display: none !important; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      tfoot { display: table-row-group; }
     }
   </style>
 </head>
@@ -83,6 +98,20 @@
   </header>
 
   <main class="max-w-7xl w-full mx-auto p-3 sm:p-6 flex-grow flex flex-col gap-4 sm:gap-5">
+
+    <!-- Encabezado solo para el PDF / impresión -->
+    <div class="print-only">
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:2px solid #0f2942; padding-bottom:4px;">
+        <div>
+          <div style="font-size:15pt; font-weight:800; color:#0f2942;">Planilla de Nómina Semanal</div>
+          <div style="font-size:10pt;">Semana: <strong id="ph-week"></strong></div>
+        </div>
+        <div style="text-align:right; font-size:10pt;">
+          <div>Trabajadores: <strong id="ph-workers">0</strong> &nbsp;|&nbsp; Jornales: <strong id="ph-jornales">0</strong></div>
+          <div style="font-size:12pt;">Total nómina: <strong id="ph-total">-</strong></div>
+        </div>
+      </div>
+    </div>
 
     <!-- Controles -->
     <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4 no-print">
@@ -389,7 +418,7 @@
           </td>`;
         }).join('');
 
-        return `<tr class="worker-row hover:bg-amber-50/60 transition divide-x divide-slate-200 border-b border-slate-200">
+        return `<tr id="row-${i}" class="worker-row hover:bg-amber-50/60 transition divide-x divide-slate-200 border-b border-slate-200">
           <td class="c-idx text-center font-semibold text-slate-500 py-1.5 px-2 bg-slate-50/50">${i + 1}</td>
           <td class="c-full py-1 px-2" data-label="Nombre">
             <input type="text" autocomplete="off" value="${esc(w.name)}" placeholder="Escribe el nombre"
@@ -397,7 +426,7 @@
               class="w-full bg-transparent px-2 py-1 rounded focus:bg-white focus:ring-1 focus:ring-blue-500 text-blue-950 font-semibold focus:outline-none">
           </td>
           <td class="c-full py-1 px-2" data-label="Cargo">
-            <select onchange="onRoleChange(${i}, this.value)" class="w-full bg-transparent py-1 px-1 rounded font-medium text-slate-700 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">${roleOpts}</select>
+            <select required onchange="onRoleChange(${i}, this.value)" class="w-full bg-transparent py-1 px-1 rounded font-medium text-slate-700 focus:bg-white focus:ring-1 focus:ring-blue-500 focus:outline-none cursor-pointer">${roleOpts}</select>
           </td>
           <td class="c-half py-1 px-2" data-label="Jornal normal ($)">
             <input id="rn-${i}" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 80000"
@@ -451,7 +480,14 @@
           e2.className = e2.className.replace(/text-rose-700 font-extrabold|text-slate-400/g, '').trim() + (fest > 0 ? ' text-rose-700 font-extrabold' : ' text-slate-400');
         }
         if (e3) e3.textContent = formatCOP(total);
+        const rowEl = document.getElementById('row-' + i);
+        if (rowEl) rowEl.classList.toggle('row-empty', w.name.trim() === '' && dias === 0);
       });
+
+      document.getElementById('ph-week').textContent = daysMeta[0].dateText + ' al ' + daysMeta[6].dateText + ' (' + startDate.getFullYear() + ')';
+      document.getElementById('ph-workers').textContent = activeWorkers;
+      document.getElementById('ph-jornales').textContent = fmtNum(sumDias) + ' (' + fmtNum(sumFest) + ' festivos)';
+      document.getElementById('ph-total').textContent = formatCOP(sumPay);
 
       daySum.forEach((v, i) => { document.getElementById('tot-jornal-' + i).textContent = fmtNum(v); });
       costSum.forEach((v, i) => { document.getElementById('cost-day-' + i).textContent = formatCOP(v); });
